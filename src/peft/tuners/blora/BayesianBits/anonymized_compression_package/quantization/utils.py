@@ -4,13 +4,10 @@
 import numpy as np
 import torch
 
-from anonymized_compression_package.quantization.straight_through import (
+from .straight_through import (
     QuantizationHijacker,
 )
-from anonymized_compression_package.quantization.quantized_folded_bn import (
-    BatchNormQScheme,
-)
-from anonymized_compression_package.utils import to_numpy
+from ..utils import to_numpy
 
 
 def replace_relu6_quantized(layer):

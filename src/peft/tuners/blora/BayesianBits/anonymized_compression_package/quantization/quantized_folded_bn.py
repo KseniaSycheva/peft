@@ -7,10 +7,9 @@ from torch import nn
 
 import numpy as np
 
-from anonymized_compression_package.quantization.straight_through import (
+from .straight_through import (
     QuantizationHijacker,
 )
-import torch.nn.functional as F
 
 
 class BatchNormQScheme(QuantizationHijacker):

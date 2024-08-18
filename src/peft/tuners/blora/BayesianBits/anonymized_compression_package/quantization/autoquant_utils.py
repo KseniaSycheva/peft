@@ -6,18 +6,11 @@ import copy
 
 from torch import nn
 
-import os
-import sys
-from pathlib import Path
 
-
-sys.path.append(os.path.join(str(Path.cwd()), 'BayesianBits'))
-
-
-from anonymized_compression_package.quantization.straight_through import (
+from .straight_through import (
     QuantizationHijacker,
 )
-from anonymized_compression_package.quantization.quantized_folded_bn import (
+from .quantized_folded_bn import (
     BatchNormQScheme,
 )
 

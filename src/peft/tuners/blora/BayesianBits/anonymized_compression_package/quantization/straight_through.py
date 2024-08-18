@@ -2,7 +2,6 @@
 # All Rights Reserved.
 
 import copy
-import warnings
 
 import numpy as np
 import torch
@@ -12,7 +11,7 @@ from torch.nn import functional as F
 from torch.autograd import Function
 from torch.utils.checkpoint import checkpoint
 
-from anonymized_compression_package.utils import to_numpy
+from ..utils import to_numpy
 
 
 class RoundStraightThrough(Function):

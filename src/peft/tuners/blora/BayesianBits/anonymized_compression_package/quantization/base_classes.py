@@ -3,10 +3,10 @@
 
 from torch import nn
 
-from anonymized_compression_package.quantization.quantized_folded_bn import (
+from .quantized_folded_bn import (
     BatchNormQScheme,
 )
-from anonymized_compression_package.quantization.straight_through import (
+from .straight_through import (
     QuantizationHijacker,
 )
 
