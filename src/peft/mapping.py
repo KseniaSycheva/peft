@@ -62,6 +62,7 @@ from .tuners import (
     VeraModel,
     XLoraConfig,
 )
+from .tuners.blora.model import BLoraModel
 from .tuners.tuners_utils import BaseTuner as _BaseTuner
 from .utils import _prepare_prompt_learning_config
 
@@ -104,6 +105,7 @@ PEFT_TYPE_TO_TUNER_MAPPING: dict[str, type[_BaseTuner]] = {
     "LOHA": LoHaModel,
     "LOKR": LoKrModel,
     "ADALORA": AdaLoraModel,
+    "BLORA": BLoraModel,
     "BOFT": BOFTModel,
     "IA3": IA3Model,
     "OFT": OFTModel,

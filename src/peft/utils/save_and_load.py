@@ -73,7 +73,7 @@ def get_peft_model_state_dict(
         state_dict = model.state_dict()
 
     # TUNER SPECIFIC CODE
-    if config.peft_type in (PeftType.LORA, PeftType.ADALORA):
+    if config.peft_type in (PeftType.LORA, PeftType.ADALORA, PeftType.BLORA):
         # to_return = lora_state_dict(model, bias=model.peft_config.bias)
         # adapted from `https://github.com/microsoft/LoRA/blob/main/loralib/utils.py`
         # to be used directly with the state dict which is necessary when using DeepSpeed or FSDP
@@ -99,6 +99,7 @@ def get_peft_model_state_dict(
                 rank_pattern = {k.replace(f".{adapter_name}", ""): v for k, v in rank_pattern.items()}
                 config.rank_pattern = rank_pattern
                 to_return = model.resize_state_dict_by_rank_pattern(rank_pattern, to_return, adapter_name)
+            # TODO: similar thing to BLORA
 
         if config.use_dora:
             # Here we take care of a refactor of DoRA which changed lora_magnitude_vector from a ParameterDict to a
@@ -313,6 +314,7 @@ def set_peft_model_state_dict(
         PeftType.LOHA,
         PeftType.LOKR,
         PeftType.ADALORA,
+        PeftType.BLORA,
         PeftType.IA3,
         PeftType.OFT,
         PeftType.POLY,
@@ -326,6 +328,7 @@ def set_peft_model_state_dict(
             PeftType.IA3: "ia3_",
             PeftType.LORA: "lora_",
             PeftType.ADALORA: "lora_",
+            PeftType.BLORA: "lora_",
             PeftType.LOHA: "hada_",
             PeftType.LOKR: "lokr_",
             PeftType.OFT: "oft_",
@@ -351,6 +354,7 @@ def set_peft_model_state_dict(
             rank_pattern = config.rank_pattern
             if rank_pattern is not None:
                 model.resize_modules_by_rank_pattern(rank_pattern, adapter_name)
+        # TODO: loading for BLoRA
         elif config.peft_type == PeftType.VERA:
             if config.save_projection and "base_model.vera_A" not in peft_model_state_dict:
                 raise ValueError(
