@@ -5,7 +5,7 @@ import torch
 from peft.tuners.blora.BayesianBits.anonymized_compression_package.quantization.straight_through import \
     BayesianBitsQuantizer
 from peft.tuners.blora.config import BLoraConfig
-from peft.tuners.blora.layer import BLoraSVDLayer, BLoraLayer
+from peft.tuners.blora.layer import BLoraSVDLayer, BLoraLayer, BLoraNoSVDLayer
 from peft.tuners.lora import LoraModel
 from peft.tuners.tuners_utils import BaseTunerLayer
 from peft.utils import _freeze_adapter, TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODULES_MAPPING
@@ -110,7 +110,7 @@ class BLoraModel(LoraModel):
         if blora_config.prune_rank:
             new_module = BLoraSVDLayer(target, adapter_name, **kwargs)
         else:
-            new_module = BLoraLayer(target, adapter_name, **kwargs)
+            new_module = BLoraNoSVDLayer(target, adapter_name, **kwargs)
         return new_module
 
     @staticmethod

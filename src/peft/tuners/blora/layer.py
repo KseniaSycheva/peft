@@ -55,50 +55,6 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
 
         self._active_adapter = adapter_name
 
-    def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
-        if r < 0:
-            # note: r == 0 is allowed for AdaLora, see #1539
-            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
-
-        self.r[adapter_name] = r
-        self.lora_alpha[adapter_name] = lora_alpha
-        if lora_dropout > 0.0:
-            lora_dropout_layer = nn.Dropout(p=lora_dropout)
-        else:
-            lora_dropout_layer = nn.Identity()
-
-        self.lora_dropout[adapter_name] = lora_dropout_layer
-        # Actual trainable parameters
-        # Right singular vectors
-        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
-        # Left singular vectors
-        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
-
-        # Quantizers for weights
-        for quantizer in self.weight_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=False,
-                **kwargs
-            )
-
-        # Quantizers for activations
-        for quantizer in self.activation_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=True,
-                momentum=self.act_momentum,
-                **kwargs
-            )
-
-        if init_lora_weights:
-            self.reset_lora_parameters(adapter_name, True)
-
-        self._move_adapter_to_device_of_base_layer(adapter_name)
-        self.set_adapter(self.active_adapters)
-
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         if init_lora_weights is False:
             return
@@ -230,6 +186,50 @@ class BLoraNoSVDLayer(BLoraLayer):
         )
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
+    def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
+        if r < 0:
+            # note: r == 0 is allowed for AdaLora, see #1539
+            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
+
+        self.r[adapter_name] = r
+        self.lora_alpha[adapter_name] = lora_alpha
+        if lora_dropout > 0.0:
+            lora_dropout_layer = nn.Dropout(p=lora_dropout)
+        else:
+            lora_dropout_layer = nn.Identity()
+
+        self.lora_dropout[adapter_name] = lora_dropout_layer
+        # Actual trainable parameters
+        # Right singular vectors
+        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
+        # Left singular vectors
+        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
+
+        # Quantizers for weights
+        for quantizer in self.weight_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=False,
+                **kwargs
+            )
+
+        # Quantizers for activations
+        for quantizer in self.activation_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=True,
+                momentum=self.act_momentum,
+                **kwargs
+            )
+
+        if init_lora_weights:
+            self.reset_lora_parameters(adapter_name, True)
+
+        self._move_adapter_to_device_of_base_layer(adapter_name)
+        self.set_adapter(self.active_adapters)
+
 
 class BLoraSVDLayer(BLoraLayer):
     def __init__(
@@ -266,9 +266,50 @@ class BLoraSVDLayer(BLoraLayer):
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
-        super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
+        if r < 0:
+            # note: r == 0 is allowed for AdaLora, see #1539
+            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
+
+        self.r[adapter_name] = r
+        self.lora_alpha[adapter_name] = lora_alpha
+        if lora_dropout > 0.0:
+            lora_dropout_layer = nn.Dropout(p=lora_dropout)
+        else:
+            lora_dropout_layer = nn.Identity()
+
+        self.lora_dropout[adapter_name] = lora_dropout_layer
+        # Actual trainable parameters
+        # Right singular vectors
+        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
+        # Left singular vectors
+        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
         # Singular values
         self.lora_E[adapter_name] = nn.Parameter(torch.randn(r, 1))
+
+        # Quantizers for weights
+        for quantizer in self.weight_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=False,
+                **kwargs
+            )
+
+        # Quantizers for activations
+        for quantizer in self.activation_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=True,
+                momentum=self.act_momentum,
+                **kwargs
+            )
+
+        if init_lora_weights:
+            self.reset_lora_parameters(adapter_name, True)
+
+        self._move_adapter_to_device_of_base_layer(adapter_name)
+        self.set_adapter(self.active_adapters)
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         super().reset_lora_parameters(adapter_name, init_lora_weights)
