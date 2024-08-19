@@ -142,11 +142,6 @@ class BLoraNoSVDLayer(BLoraLayer):
         super().__init__(
             base_layer,
             adapter_name,
-            r=r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            fan_in_fan_out=fan_in_fan_out,
-            init_lora_weights=init_lora_weights,
             **kwargs
         )
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
@@ -201,6 +196,8 @@ class BLoraNoSVDLayer(BLoraLayer):
         # Left singular vectors
         self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
 
+        # TODO: quantizers are initialized after setting parameters to trainable
+        # need to run dummy forward to initialize them
         # Quantizers for weights
         for quantizer in self.weight_quantizers:
             quantizer[adapter_name] = Quantizer(

@@ -13,7 +13,9 @@ from peft.utils import _freeze_adapter, TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODU
 
 
 class BLoraModel(LoraModel):
-    def __init__(self, model, config: BLoraConfig, adapter_name):
+    def __init__(self, model, config, adapter_name):
+        self.trainable_adapter_name = adapter_name
+
         super().__init__(model, config, adapter_name)
 
         # TODO: check that it is actually needed
@@ -31,8 +33,6 @@ class BLoraModel(LoraModel):
 
         if self.peft_config[adapter_name].inference_mode:
             _freeze_adapter(self.model, adapter_name)
-        else:
-            self.trainable_adapter_name = adapter_name
 
     def __getattr__(self, name: str):
         """Forward missing attributes to the wrapped module."""
@@ -87,8 +87,10 @@ class BLoraModel(LoraModel):
         quantization and rank adaptation as trainable.
         """
         super()._mark_only_adapters_as_trainable(model)
+        config = self.peft_config[self.trainable_adapter_name]
+
         for n, p in model.named_parameters():
-            if self.peft_config.learn_gates and "gamma" in n:
+            if config.learn_gates and "gamma" in n:
                 p.requires_grad = True
             elif self.peft_config.learn_scales:
                 if "x_min" in n or "x_max" in n or "s_2" in n:
