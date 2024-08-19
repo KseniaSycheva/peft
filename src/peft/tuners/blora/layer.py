@@ -18,16 +18,18 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
             r: int = 0,
             lora_alpha: int = 1,
             lora_dropout: float = 0.0,
+            fan_in_fan_out: bool = False,
             init_lora_weights: bool = True,
             n_bits: int = 16,
             **kwargs
     ):
-        super(LoraLayer, self).__init__(base_layer, **kwargs)
-        super(QuantizationHijacker, self).__init__(
+        QuantizationHijacker.__init__(
+            self,
             method="bayesian_bits",
             n_bits=n_bits,
             **kwargs
         )
+        LoraLayer.__init__(self, base_layer=base_layer, **kwargs)
 
         if not isinstance(base_layer, nn.Linear):
             raise ValueError("Only linear layers are currently supported.")
@@ -52,7 +54,6 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         ]
 
         self._active_adapter = adapter_name
-        self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
         if r < 0:
@@ -205,6 +206,31 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         return activations
 
 
+class BLoraNoSVDLayer(BLoraLayer):
+    def __init__(
+            self,
+            base_layer,
+            adapter_name,
+            r: int = 0,
+            lora_alpha: int = 1,
+            lora_dropout: float = 0.0,
+            fan_in_fan_out: bool = False,
+            init_lora_weights: bool = True,
+            **kwargs
+    ):
+        super().__init__(
+            base_layer,
+            adapter_name,
+            r=r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            fan_in_fan_out=fan_in_fan_out,
+            init_lora_weights=init_lora_weights,
+            **kwargs
+        )
+        self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
+
+
 class BLoraSVDLayer(BLoraLayer):
     def __init__(
             self,
@@ -213,14 +239,18 @@ class BLoraSVDLayer(BLoraLayer):
             r: int = 0,
             lora_alpha: int = 1,
             lora_dropout: float = 0.0,
+            fan_in_fan_out: bool = False,
             init_lora_weights: bool = True,
-            **kwargs):
-        super(BLoraSVDLayer, self).__init__(
+            **kwargs
+    ):
+
+        super().__init__(
             base_layer,
             adapter_name,
             r=r,
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
+            fan_in_fan_out=fan_in_fan_out,
             init_lora_weights=init_lora_weights,
             **kwargs
         )
@@ -232,6 +262,8 @@ class BLoraSVDLayer(BLoraLayer):
 
         self.weight_quantizers.append(self.lora_E_quantizer)
         self.activation_quantizers.append(self.lora_E_act_quantizer)
+
+        self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
         super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
