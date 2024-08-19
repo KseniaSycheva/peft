@@ -15,11 +15,6 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
             self,
             base_layer: nn.Module,
             adapter_name,
-            r: int = 0,
-            lora_alpha: int = 1,
-            lora_dropout: float = 0.0,
-            fan_in_fan_out: bool = False,
-            init_lora_weights: bool = True,
             n_bits: int = 16,
             **kwargs
     ):
@@ -43,7 +38,7 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         self.lora_AB_act_quantizer = nn.ModuleDict({})
         self.out_act_quantizer = nn.ModuleDict({})
         self.activation_quantizer = nn.ModuleDict({})
-        self.weight_quantizer = nn.ParameterDict({})
+        self.weight_quantizer = nn.ModuleDict({})
 
         self.weight_quantizers = [self.lora_A_quantizer, self.lora_B_quantizer, self.weight_quantizer]
         self.activation_quantizers = [
@@ -63,37 +58,6 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
             nn.init.normal_(self.lora_A[adapter_name], mean=0.0, std=0.02)
             nn.init.normal_(self.lora_B[adapter_name], mean=0.0, std=0.02)
 
-    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        if self.disable_adapters or self.merged or self.r <= 0:
-            result = self.base_layer(x, *args, **kwargs)
-        else:
-            result = None
-            for active_adapter in self.active_adapters:
-                if active_adapter not in self.lora_A.keys():
-                    continue
-
-                weight, bias = self.get_params(active_adapter)
-                weight_a, weight_b = self.get_lora_params(active_adapter)
-
-                def T(w):
-                    return w.transpose(0, 1) if self.fan_in_fan_out else w
-
-                # TODO: add handling / exception handling for other layers
-                # Right now assumes that base_layer is linear
-                result = F.linear(x, T(weight), bias=bias)
-                result = self.quantize_activations(result, self.activation_quantizer[active_adapter])
-                lora_A_act = self.lora_dropout[active_adapter](x) @ weight_a.transpose(0, 1)
-                lora_A_act = self.quantize_activations(lora_A_act, self.lora_A_act_quantizer[active_adapter])
-                lora_act = lora_A_act @ weight_b.transpose(0, 1)
-                lora_act = self.quantize_activations(lora_act, self.lora_AB_act_quantizer[active_adapter])
-                result += lora_act * self.scaling[active_adapter]
-                result = self.quantize_activations(result, self.out_act_quantizer[active_adapter])
-
-            if result is None:
-                result = self.base_layer(x, *args, **kwargs)
-
-        return result
-
     def get_params(self, adapter_name: str):
         if not self.training and self.cached_params:
             return self.cached_params
@@ -102,6 +66,7 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
 
         if self._quant_w:
             weight = self.weight_quantizer[adapter_name](weight)
+            bias = self.weight_quantizer[adapter_name](bias)
 
         if not self.training and self.cached_params is None:
             self.cached_params = (
@@ -185,6 +150,37 @@ class BLoraNoSVDLayer(BLoraLayer):
             **kwargs
         )
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
+
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
+        if self.disable_adapters or self.merged or self.r <= 0:
+            result = self.base_layer(x, *args, **kwargs)
+        else:
+            result = None
+            for active_adapter in self.active_adapters:
+                if active_adapter not in self.lora_A.keys():
+                    continue
+
+                weight, bias = self.get_params(active_adapter)
+                weight_a, weight_b = self.get_lora_params(active_adapter)
+
+                def T(w):
+                    return w.transpose(0, 1) if self.fan_in_fan_out else w
+
+                # TODO: add handling / exception handling for other layers
+                # Right now assumes that base_layer is linear
+                result = F.linear(x, T(weight), bias=bias)
+                result = self.quantize_activations(result, self.activation_quantizer[active_adapter])
+                lora_A_act = self.lora_dropout[active_adapter](x) @ weight_a.transpose(0, 1)
+                lora_A_act = self.quantize_activations(lora_A_act, self.lora_A_act_quantizer[active_adapter])
+                lora_act = lora_A_act @ weight_b.transpose(0, 1)
+                lora_act = self.quantize_activations(lora_act, self.lora_AB_act_quantizer[active_adapter])
+                result += lora_act * self.scaling[active_adapter]
+                result = self.quantize_activations(result, self.out_act_quantizer[active_adapter])
+
+            if result is None:
+                result = self.base_layer(x, *args, **kwargs)
+
+        return result
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
         if r < 0:

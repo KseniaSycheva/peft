@@ -1,6 +1,7 @@
 import warnings
 
 import torch
+from torch import nn
 
 from peft.tuners.blora.BayesianBits.anonymized_compression_package.quantization.straight_through import \
     BayesianBitsQuantizer
@@ -12,7 +13,7 @@ from peft.utils import _freeze_adapter, TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODU
 
 
 class BLoraModel(LoraModel):
-    def __init__(self, model, config, adapter_name):
+    def __init__(self, model, config: BLoraConfig, adapter_name):
         super().__init__(model, config, adapter_name)
 
         # TODO: check that it is actually needed
@@ -80,6 +81,18 @@ class BLoraModel(LoraModel):
                 blora_config.lora_dropout,
                 blora_config.init_lora_weights,
             )
+
+    def _mark_only_adapters_as_trainable(self, model: nn.Module) -> None:
+        """In addition to LoRA modules, mark all parameters related to
+        quantization and rank adaptation as trainable.
+        """
+        super()._mark_only_adapters_as_trainable(model)
+        for n, p in model.named_parameters():
+            if self.peft_config.learn_gates and "gamma" in n:
+                p.requires_grad = True
+            elif self.peft_config.learn_scales:
+                if "x_min" in n or "x_max" in n or "s_2" in n:
+                    p.requires_grad = True
 
     @staticmethod
     def _create_new_module(blora_config: BLoraConfig, adapter_name, target, **kwargs):
