@@ -8,7 +8,7 @@ from peft.tuners.blora.config import BLoraConfig
 from peft.tuners.blora.layer import BLoraSVDLayer, BLoraLayer
 from peft.tuners.lora import LoraModel
 from peft.tuners.tuners_utils import BaseTunerLayer
-from peft.utils import _freeze_adapter
+from peft.utils import _freeze_adapter, TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODULES_MAPPING
 
 
 class BLoraModel(LoraModel):
@@ -59,7 +59,8 @@ class BLoraModel(LoraModel):
             "init_lora_weights": blora_config.init_lora_weights,
         }
         # TODO: check if actually not supported
-        if kwargs["loaded_in_8bit"] or kwargs["loaded_in_4bit"]:
+        if ("loaded_in_8bit" in kwargs and kwargs["loaded_in_8bit"]
+                or "loaded_in_4bit" in kwargs and kwargs["loaded_in_4bit"]):
             raise ValueError(
                 "BLoraModel cannot be combined with 4- or 8-bit loading."
             )
@@ -82,7 +83,8 @@ class BLoraModel(LoraModel):
 
     @staticmethod
     def _create_new_module(blora_config: BLoraConfig, adapter_name, target, **kwargs):
-        if kwargs["loaded_in_8bit"] or kwargs["loaded_in_4bit"]:
+        if ("loaded_in_8bit" in kwargs and kwargs["loaded_in_8bit"]
+                or "loaded_in_4bit" in kwargs and kwargs["loaded_in_4bit"]):
             raise ValueError(
                 "BLoraModel cannot be combined with 4- or 8-bit loading."
             )
@@ -112,8 +114,14 @@ class BLoraModel(LoraModel):
         return new_module
 
     @staticmethod
-    def _prepare_adapter_config(peft_config, model_config):
-        pass
+    def _prepare_adapter_config(peft_config: BLoraConfig, model_config):
+        if peft_config.target_modules is None:
+            if model_config["model_type"] not in TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODULES_MAPPING:
+                raise ValueError("Please specify `target_modules` in `peft_config`")
+            peft_config.target_modules = TRANSFORMERS_MODELS_TO_BLORA_TARGET_MODULES_MAPPING[
+                model_config["model_type"]
+            ]
+        return peft_config
 
     def gate_loss(self):
         reg_term = 0.0

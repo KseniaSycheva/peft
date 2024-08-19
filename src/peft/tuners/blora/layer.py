@@ -13,14 +13,17 @@ from peft.tuners.lora import LoraLayer
 class BLoraLayer(LoraLayer, QuantizationHijacker):
     def __init__(
             self,
-            *args,
             base_layer: nn.Module,
+            adapter_name,
+            r: int = 0,
+            lora_alpha: int = 1,
+            lora_dropout: float = 0.0,
+            init_lora_weights: bool = True,
             n_bits: int = 16,
             **kwargs
     ):
-        super(LoraLayer, self).__init__(*args, base_layer=base_layer, **kwargs)
+        super(LoraLayer, self).__init__(base_layer, **kwargs)
         super(QuantizationHijacker, self).__init__(
-            *args,
             method="bayesian_bits",
             n_bits=n_bits,
             **kwargs
@@ -47,6 +50,9 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
             self.activation_quantizer,
             self.out_act_quantizer,
         ]
+
+        self._active_adapter = adapter_name
+        self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
         if r < 0:
@@ -202,14 +208,22 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
 class BLoraSVDLayer(BLoraLayer):
     def __init__(
             self,
-            in_features,
-            out_features,
-            r,
-            reg_type="const",
-            *args, activation=None, **kwargs):
-        super(BLoraSVDLayer, self).__init__(in_features=in_features, out_features=out_features, r=r,
-                                            reg_type=reg_type,
-                                            activation=activation, merge_weights=False, *args, **kwargs)
+            base_layer,
+            adapter_name,
+            r: int = 0,
+            lora_alpha: int = 1,
+            lora_dropout: float = 0.0,
+            init_lora_weights: bool = True,
+            **kwargs):
+        super(BLoraSVDLayer, self).__init__(
+            base_layer,
+            adapter_name,
+            r=r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            init_lora_weights=init_lora_weights,
+            **kwargs
+        )
 
         self.lora_E = nn.ParameterDict({})
 
