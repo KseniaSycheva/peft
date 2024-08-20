@@ -206,7 +206,7 @@ class BLoraNoSVDLayer(BLoraLayer):
                 use_running_mean=False,
                 **kwargs
             )
-            quantizer[adapter_name].create_quantizer()
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
 
         # Quantizers for activations
         for quantizer in self.activation_quantizers:
@@ -217,7 +217,7 @@ class BLoraNoSVDLayer(BLoraLayer):
                 momentum=self.act_momentum,
                 **kwargs
             )
-            quantizer[adapter_name].create_quantizer()
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
 
         if init_lora_weights:
             self.reset_lora_parameters(adapter_name, True)
@@ -284,7 +284,7 @@ class BLoraSVDLayer(BLoraLayer):
                 use_running_mean=False,
                 **kwargs
             )
-            quantizer[adapter_name].create_quantizer()
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
 
         # Quantizers for activations
         for quantizer in self.activation_quantizers:
@@ -295,7 +295,7 @@ class BLoraSVDLayer(BLoraLayer):
                 momentum=self.act_momentum,
                 **kwargs
             )
-            quantizer[adapter_name].create_quantizer()
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
 
         if init_lora_weights:
             self.reset_lora_parameters(adapter_name, True)

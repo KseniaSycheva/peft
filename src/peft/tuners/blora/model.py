@@ -92,7 +92,7 @@ class BLoraModel(LoraModel):
         for n, p in model.named_parameters():
             if config.learn_gates and "gamma" in n:
                 p.requires_grad = True
-            elif self.peft_config.learn_scales:
+            elif config.learn_scales:
                 if "x_min" in n or "x_max" in n or "s_2" in n:
                     p.requires_grad = True
 
