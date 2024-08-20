@@ -250,6 +250,7 @@ class BayesianBitsQuantizer(nn.Module):
         self.mac_count, self.max_macs = None, None
         self.do_reg = True
         self.reg_type = reg_type
+        self.cuda = cuda
 
         self.init_ranges = False
         self.mini = self.maxi = None
@@ -260,7 +261,6 @@ class BayesianBitsQuantizer(nn.Module):
             x_min or -10, x_max or 10, final_init=(None not in [x_min, x_max])
         )
 
-        self.cuda = cuda
         self.gamma_16_init = gamma_16_init
         self.gamma_32_init = gamma_32_init
 
@@ -507,14 +507,6 @@ class BayesianBitsQuantizer(nn.Module):
         if self.fixed_8bit or self.fixed_4bit:
             return x
 
-        # if self.training and gate_4.size(0) != 1:
-        #     rest_shape = [1] * (len(x.size()) - 1)
-        #     rshp = lambda _x: _x.view(_x.size(0), *rest_shape)
-        #     gate_4 = rshp(gate_4)
-        #     gate_8 = rshp(gate_8)
-        #     gate_16 = rshp(gate_16)
-        #     gate_32 = rshp(gate_32)
-
         if gate_2 is not None:
             rest_shape = [1] * (len(x.size()) - 1)
             rshp = lambda _x: _x.view(_x.size(0), *rest_shape)
@@ -662,6 +654,7 @@ class Quantizer(nn.Module):
                 self.n_bits,
                 self.x_min,
                 self.x_max,
+                cuda=torch.cuda.is_available(),
                 gating_method=self.gating_method,
                 gamma_4_init=self.gamma_4_init,
                 gamma_8_init=self.gamma_8_init,
