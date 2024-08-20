@@ -242,11 +242,6 @@ class BLoraSVDLayer(BLoraLayer):
         super().__init__(
             base_layer,
             adapter_name,
-            r=r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            fan_in_fan_out=fan_in_fan_out,
-            init_lora_weights=init_lora_weights,
             **kwargs
         )
 
