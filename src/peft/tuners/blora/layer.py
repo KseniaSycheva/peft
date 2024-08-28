@@ -262,10 +262,10 @@ class BLoraSVDLayer(BLoraLayer):
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
-        super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
-
         # Singular values
         self.lora_E[adapter_name] = nn.Parameter(torch.randn(r, 1))
+
+        super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         super().reset_lora_parameters(adapter_name, init_lora_weights)
