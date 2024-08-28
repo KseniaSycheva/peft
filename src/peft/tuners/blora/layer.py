@@ -26,6 +26,9 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         )
         LoraLayer.__init__(self, base_layer=base_layer, **kwargs)
 
+        self.quantized_weights()
+        self.quantized_acts()
+
         if not isinstance(base_layer, nn.Linear):
             raise ValueError("Only linear layers are currently supported.")
 
@@ -49,6 +52,54 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         ]
 
         self._active_adapter = adapter_name
+
+    def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
+        if r < 0:
+            # note: r == 0 is allowed for AdaLora, see #1539
+            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
+
+        self.r[adapter_name] = r
+        self.lora_alpha[adapter_name] = lora_alpha
+        if lora_dropout > 0.0:
+            lora_dropout_layer = nn.Dropout(p=lora_dropout)
+        else:
+            lora_dropout_layer = nn.Identity()
+
+        self.lora_dropout[adapter_name] = lora_dropout_layer
+        self.scaling[adapter_name] = lora_alpha / r
+
+        # Actual trainable parameters
+        # Right singular vectors
+        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
+        # Left singular vectors
+        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
+
+        # Quantizers for weights
+        for quantizer in self.weight_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=False,
+                **kwargs
+            )
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
+
+        # Quantizers for activations
+        for quantizer in self.activation_quantizers:
+            quantizer[adapter_name] = Quantizer(
+                method="bayesian_bits",
+                n_bits=self.N,
+                use_running_mean=True,
+                momentum=self.act_momentum,
+                **kwargs
+            )
+            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
+
+        if init_lora_weights:
+            self.reset_lora_parameters(adapter_name, True)
+
+        self._move_adapter_to_device_of_base_layer(adapter_name)
+        self.set_adapter(self.active_adapters)
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         if init_lora_weights is False:
@@ -87,7 +138,7 @@ class BLoraLayer(LoraLayer, QuantizationHijacker):
         raise ValueError("Only linear layers are currently supported.")
 
     def get_lora_params(self, active_adapter):
-        lora_A_weight, lora_B_weight = self.lora_A, self.lora_B
+        lora_A_weight, lora_B_weight = self.lora_A[active_adapter], self.lora_B[active_adapter]
 
         if self._quant_w:
             weight_A = self.lora_A_quantizer[active_adapter](lora_A_weight)
@@ -144,15 +195,16 @@ class BLoraNoSVDLayer(BLoraLayer):
             adapter_name,
             **kwargs
         )
+        self.fan_in_fan_out = fan_in_fan_out
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        if self.disable_adapters or self.merged or self.r <= 0:
+        if self.disable_adapters or self.merged:
             result = self.base_layer(x, *args, **kwargs)
         else:
             result = None
             for active_adapter in self.active_adapters:
-                if active_adapter not in self.lora_A.keys():
+                if active_adapter not in self.lora_A.keys() or self.r[active_adapter] <= 0:
                     continue
 
                 weight, bias = self.get_params(active_adapter)
@@ -176,54 +228,6 @@ class BLoraNoSVDLayer(BLoraLayer):
                 result = self.base_layer(x, *args, **kwargs)
 
         return result
-
-    def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
-        if r < 0:
-            # note: r == 0 is allowed for AdaLora, see #1539
-            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
-
-        self.r[adapter_name] = r
-        self.lora_alpha[adapter_name] = lora_alpha
-        if lora_dropout > 0.0:
-            lora_dropout_layer = nn.Dropout(p=lora_dropout)
-        else:
-            lora_dropout_layer = nn.Identity()
-
-        self.lora_dropout[adapter_name] = lora_dropout_layer
-        # Actual trainable parameters
-        # Right singular vectors
-        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
-        # Left singular vectors
-        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
-
-        # TODO: quantizers are initialized after setting parameters to trainable
-        # need to run dummy forward to initialize them
-        # Quantizers for weights
-        for quantizer in self.weight_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=False,
-                **kwargs
-            )
-            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
-
-        # Quantizers for activations
-        for quantizer in self.activation_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=True,
-                momentum=self.act_momentum,
-                **kwargs
-            )
-            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
-
-        if init_lora_weights:
-            self.reset_lora_parameters(adapter_name, True)
-
-        self._move_adapter_to_device_of_base_layer(adapter_name)
-        self.set_adapter(self.active_adapters)
 
 
 class BLoraSVDLayer(BLoraLayer):
@@ -253,55 +257,15 @@ class BLoraSVDLayer(BLoraLayer):
         self.weight_quantizers.append(self.lora_E_quantizer)
         self.activation_quantizers.append(self.lora_E_act_quantizer)
 
+        self.fan_in_fan_out = fan_in_fan_out
+
         self.update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
     def update_layer(self, adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs):
-        if r < 0:
-            # note: r == 0 is allowed for AdaLora, see #1539
-            raise ValueError(f"`r` should be a positive integer or 0, but the value passed is {r}")
+        super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
-        self.r[adapter_name] = r
-        self.lora_alpha[adapter_name] = lora_alpha
-        if lora_dropout > 0.0:
-            lora_dropout_layer = nn.Dropout(p=lora_dropout)
-        else:
-            lora_dropout_layer = nn.Identity()
-
-        self.lora_dropout[adapter_name] = lora_dropout_layer
-        # Actual trainable parameters
-        # Right singular vectors
-        self.lora_A[adapter_name] = nn.Parameter(torch.randn(r, self.in_features))
-        # Left singular vectors
-        self.lora_B[adapter_name] = nn.Parameter(torch.randn(self.out_features, r))
         # Singular values
         self.lora_E[adapter_name] = nn.Parameter(torch.randn(r, 1))
-
-        # Quantizers for weights
-        for quantizer in self.weight_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=False,
-                **kwargs
-            )
-            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
-
-        # Quantizers for activations
-        for quantizer in self.activation_quantizers:
-            quantizer[adapter_name] = Quantizer(
-                method="bayesian_bits",
-                n_bits=self.N,
-                use_running_mean=True,
-                momentum=self.act_momentum,
-                **kwargs
-            )
-            quantizer[adapter_name].quantizer = quantizer[adapter_name].create_quantizer()
-
-        if init_lora_weights:
-            self.reset_lora_parameters(adapter_name, True)
-
-        self._move_adapter_to_device_of_base_layer(adapter_name)
-        self.set_adapter(self.active_adapters)
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         super().reset_lora_parameters(adapter_name, init_lora_weights)
@@ -309,12 +273,12 @@ class BLoraSVDLayer(BLoraLayer):
             nn.init.normal_(self.lora_E[adapter_name])
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:
-        if self.disable_adapters or self.merged or self.r <= 0:
+        if self.disable_adapters or self.merged:
             result = self.base_layer(x, *args, **kwargs)
         else:
             result = None
             for active_adapter in self.active_adapters:
-                if active_adapter not in self.lora_A.keys():
+                if active_adapter not in self.lora_A.keys() or self.r[active_adapter] <= 0:
                     continue
 
                 weight, bias = self.get_params(active_adapter)
@@ -343,12 +307,13 @@ class BLoraSVDLayer(BLoraLayer):
         return result
 
     def get_lora_params(self, active_adapter):
-        lora_A_weight, lora_B_weight, lora_E_weight = self.lora_A, self.lora_B, self.lora_E
+        lora_A_weight, lora_B_weight, lora_E_weight = (self.lora_A[active_adapter],
+                                                       self.lora_B[active_adapter], self.lora_E[active_adapter])
 
         if self._quant_w:
             weight_A = self.lora_A_quantizer[active_adapter](lora_A_weight)
             weight_B = self.lora_B_quantizer[active_adapter](lora_B_weight)
-            weight_E = self.lora_E_quantizer(lora_E_weight)
+            weight_E = self.lora_E_quantizer[active_adapter](lora_E_weight)
         else:
             print('no quantization')
             weight_A, weight_B, weight_E = lora_A_weight, lora_B_weight, lora_E_weight
