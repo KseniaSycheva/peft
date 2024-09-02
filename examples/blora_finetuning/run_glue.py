@@ -47,10 +47,10 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
 
-from src.peft import get_peft_model, BLoraConfig
+from peft import get_peft_model, BLoraConfig
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -680,9 +680,9 @@ def main():
                     model_args.model_name_or_path).num_labels == num_labels:
                 checkpoint = model_args.model_name_or_path
 
-        if not model_args.quantize or model_args.warmup_epochs > 0:
-            trainer.evaluate()
-            train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        # if not model_args.quantize or model_args.warmup_epochs > 0:
+        trainer.evaluate()
+        train_result = trainer.train(resume_from_checkpoint=checkpoint)
 
         if not model_args.quantize or model_args.warmup_epochs > 0:
             metrics = train_result.metrics
