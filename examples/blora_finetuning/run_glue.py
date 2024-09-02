@@ -46,9 +46,10 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
+from typer.cli import callback
 
 from peft import get_peft_model, BLoraConfig
-
+from peft.tuners.blora.utils import BloraCallback, get_transformers_groups, get_relevant_quantizers_from_groups
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
@@ -194,7 +195,7 @@ class ModelArguments:
         metadata={"help": "LoRA r"},
     )
     lora_module: Optional[str] = field(
-        default="query,value",
+        default="query_proj,value_proj,key_proj",
         metadata={"help": "The modules applying lora: query,key,value,intermediate,layer.output,attention.output"},
     )
     lora_path: Optional[str] = field(
@@ -469,6 +470,8 @@ def main():
             r=model_args.lora_r,
             lora_alpha=model_args.lora_alpha,
             lora_dropout=0.05,
+            target_modules=model_args.lora_module,
+            quantization_lmbd=model_args.quantization_lmbd,
             task_type="SEQ_CLS",
             quantize=True,
             prune_rank=True,
@@ -574,54 +577,32 @@ def main():
             dummy_att_mask = torch.tensor([train_dataset[index]["attention_mask"]], device=device)
             model(input_ids=dummy_input_ids, token_type_ids=dummy_token_type_ids, attention_mask=dummy_att_mask)
 
-    trainable_params = []
-    if model_args.apply_lora:
-        if model_args.lora_path is not None:
-            lora_state_dict = torch.load(model_args.lora_path)
-            logger.info(f"Apply LoRA state dict from {model_args.lora_path}.")
-            logger.info(lora_state_dict.keys())
-            model.load_state_dict(lora_state_dict, strict=False)
-        trainable_params.append('lora')
-
-    if model_args.apply_adapter:
-        if model_args.adapter_path is not None:
-            adapter_state_dict = torch.load(os.path.join(model_args.adapter_path, 'pytorch_adapter.bin'))
-            head_state_dict = torch.load(os.path.join(model_args.adapter_path, 'pytorch_model_head.bin'))
-            added_state_dict = {}
-            for k, v in adapter_state_dict.items():
-                new_k = k.replace(data_args.task_name + '.', '').replace('adapter_down.0.', 'adapter_A.').replace(
-                    'adapter_up.', 'adapter_B.').replace('.adapters.', '.adapter.')
-                added_state_dict[new_k] = v
-            for k, v in head_state_dict.items():
-                new_k = k.replace('heads.' + data_args.task_name + '.1', 'classifier.dense').replace(
-                    'heads.' + data_args.task_name + '.4', 'classifier.out_proj')
-                added_state_dict[new_k] = v
-            logger.info(f"Apply adapter state dict from {model_args.adapter_path}.")
-            logger.info(added_state_dict.keys())
-            missing_keys, unexpected_keys = model.load_state_dict(added_state_dict, strict=False)
-            for missing_key in missing_keys:
-                assert 'adapter' not in missing_key, missing_key + ' is missed in the model'
-            assert len(unexpected_keys) == 0, 'Unexpected keys ' + str(unexpected_keys)
-        trainable_params.append('adapter')
-
-    if model_args.apply_bitfit:
-        trainable_params.append('bias')
+    for name, param in model.named_parameters():
+        if not name.startswith('deberta') and not name.startswith('roberta'):
+            param.requires_grad = True
 
     if model_args.quantize:
-        if model_args.learn_gates:
-            trainable_params.append('gamma')
-        if model_args.learn_scales:
-            trainable_params.extend(['x_min', 'x_max', 's_2'])
-    if len(trainable_params) > 0:
-        for name, param in model.named_parameters():
-            if name.startswith('deberta') or name.startswith('roberta'):
-                param.requires_grad = False
-                for trainable_param in trainable_params:
-                    if trainable_param in name:
-                        param.requires_grad = True
-                        break
-            else:
-                param.requires_grad = True
+        if "deberta" in model_args.model_name_or_path:
+            quantizer_groups = get_transformers_groups(model, config, 'deberta',
+                                                       trainable=model_args.lora_module.split(','),
+                                                       prune_rank=model_args.prune_rank)
+        elif "roberta" in model_args.model_name_or_path:
+            quantizer_groups = get_transformers_groups(model, config, 'roberta',
+                                                       trainable=model_args.lora_module.split(','),
+                                                       prune_rank=model_args.prune_rank)
+        else:
+            raise ValueError("Use this script for Deberta and Roberta only.")
+
+        relevant_quantizers = get_relevant_quantizers_from_groups(quantizer_groups)
+
+    if model_args.quantize:
+        callbacks = [
+            BloraCallback(data_args.task_name, quantizer_groups, relevant_quantizers,
+                          prune_rank=model_args.prune_rank, rank=model_args.lora_r,
+                          use_wandb=model_args.use_wandb)
+        ]
+    else:
+        callbacks = []
 
     # Get the metric function
     if data_args.task_name is not None:
@@ -654,9 +635,6 @@ def main():
         data_collator = None
 
     # Initialize our Trainer
-    if model_args.quantize and model_args.warmup_epochs > 0:
-        n_epochs = training_args.num_train_epochs
-        training_args.num_train_epochs = model_args.warmup_epochs
 
     trainer = Trainer(
         model=model,
@@ -666,6 +644,7 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
         data_collator=data_collator,
+        callbacks=callbacks,
     )
 
     # Training

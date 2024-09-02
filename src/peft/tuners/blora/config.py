@@ -40,7 +40,7 @@ class BLoraConfig(LoraConfig):
     """
 
     quantize: bool = field(default=True, metadata={"help": "If true, quantization is applied."})
-    quantization_lmbd: float = field(default=12, metadata={"help": "Coefficient for gate loss."})
+    quantization_lmbd: float = field(default=0.001, metadata={"help": "Coefficient for gate loss."})
     n_bits: int = field(default=16, metadata={"help": "Maximum number of bits."})
     learn_gates: bool = field(default=True, metadata={"help": "If true, gates are optimized."})
     learn_scales: bool = field(default=False, metadata={"help": "If true, scales are optimized."})
