@@ -46,7 +46,6 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
-from typer.cli import callback
 
 from peft import get_peft_model, BLoraConfig
 from peft.tuners.blora.utils import BloraCallback, get_transformers_groups, get_relevant_quantizers_from_groups
@@ -470,7 +469,7 @@ def main():
             r=model_args.lora_r,
             lora_alpha=model_args.lora_alpha,
             lora_dropout=0.05,
-            target_modules=model_args.lora_module,
+            target_modules=model_args.lora_module.split(","),
             quantization_lmbd=model_args.quantization_lmbd,
             task_type="SEQ_CLS",
             quantize=True,
