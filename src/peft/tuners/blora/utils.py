@@ -197,25 +197,27 @@ def get_transformers_groups(model: nn.Module, config, model_name, quantize_only_
                 groups.append(((act, q_template.format(name1="classifier.dense", name2="weight"),),
                                [hidden_act, model.classifier.dense.weight_quantizer]))
         else:
-            if model_name == "deberta":
-                groups.append(((q_template.format(name1="pooler.dense", name2="weight"),),
-                               [model.pooler.dense.weight_quantizer]))
-            elif model_name == "roberta":
-                groups.append(((q_template.format(name1="classifier.dense", name2="weight"),),
-                               [model.classifier.dense.weight_quantizer]))
+            if hasattr(model.pooler, "weight_quantizer"):
+                if model_name == "deberta":
+                    groups.append(((q_template.format(name1="pooler.dense", name2="weight"),),
+                                   [model.pooler.dense.weight_quantizer]))
+                elif model_name == "roberta":
+                    groups.append(((q_template.format(name1="classifier.dense", name2="weight"),),
+                                   [model.classifier.dense.weight_quantizer]))
 
-        if model_name == "deberta":
-            groups.append(((q_template.format(name1="pooler.dense", name2='activation'),
-                            q_template.format(name1="classifier", name2="weight"),),
-                           [model.pooler.dense.activation_quantizer, model.classifier.weight_quantizer]))
-            groups.append(((q_template.format(name1="classifier", name2="activation"),),
-                           [model.classifier.activation_quantizer]))
-        elif model_name == "roberta":
-            groups.append(((q_template.format(name1="classifier.dense", name2='activation'),
-                            q_template.format(name1="classifier.out_proj", name2="weight"),),
-                           [model.classifier.dense.activation_quantizer, model.classifier.out_proj.weight_quantizer]))
-            groups.append(((q_template.format(name1="classifier.out_proj", name2="activation"),),
-                           [model.classifier.out_proj.activation_quantizer]))
+        if hasattr(model.classifier, "weight_quantizer"):
+            if model_name == "deberta":
+                groups.append(((q_template.format(name1="pooler.dense", name2='activation'),
+                                q_template.format(name1="classifier", name2="weight"),),
+                               [model.pooler.dense.activation_quantizer, model.classifier.weight_quantizer]))
+                groups.append(((q_template.format(name1="classifier", name2="activation"),),
+                               [model.classifier.activation_quantizer]))
+            elif model_name == "roberta":
+                groups.append(((q_template.format(name1="classifier.dense", name2='activation'),
+                                q_template.format(name1="classifier.out_proj", name2="weight"),),
+                               [model.classifier.dense.activation_quantizer, model.classifier.out_proj.weight_quantizer]))
+                groups.append(((q_template.format(name1="classifier.out_proj", name2="activation"),),
+                               [model.classifier.out_proj.activation_quantizer]))
 
         return groups
 
@@ -251,9 +253,7 @@ class BloraCallback(TrainerCallback):
             wandb_log["train/activations"] = wandb.plot.histogram(ha, "activations_quant",
                                                                   title="Activations Levels of Quantization")
             wandb_log["train/epoch"] = state.epoch
-            wandb_log["train/total_bitops"] = bitops
-            # for k, v in metrics.items():
-            #    wandb_log[f"train/{k}"] = v
+
             for m in self.metrics:
                 if m in metrics.keys():
                     wandb_log[f"train/{m.split('_')[-1]}"] = metrics[m]
