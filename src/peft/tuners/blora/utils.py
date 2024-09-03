@@ -92,14 +92,14 @@ def get_attention_groups(attn_layer: nn.Module, layer_n: int, prefix: str, model
     elif model_name == "roberta":
         suffix = ""
 
-    if 'query' in trainable or not quantize_only_trainable:
+    if 'query_proj' in trainable or not quantize_only_trainable:
         groups.extend(get_proj_groups(getattr(self_attn, f"query{suffix}"), layer_n, prefix + f".attention.self.query{suffix}", model_name, hidden_act, True, prune_rank))
 
-    if 'key' in trainable or not quantize_only_trainable:
+    if 'key_proj' in trainable or not quantize_only_trainable:
         groups.extend(get_proj_groups(
             getattr(self_attn, f"key{suffix}"), layer_n, prefix + f".attention.self.key{suffix}", model_name, hidden_act, True, prune_rank)
         )
-    if 'value' in trainable or not quantize_only_trainable:
+    if 'value_proj' in trainable or not quantize_only_trainable:
         groups.extend(get_proj_groups(
             getattr(self_attn, f"value{suffix}"), layer_n, prefix + f".attention.self.value{suffix}", model_name, hidden_act, True, prune_rank)
         )
