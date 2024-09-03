@@ -248,10 +248,6 @@ class BloraCallback(TrainerCallback):
 
         if self.use_wandb:
             wandb_log = {}
-            wandb_log["train/weights"] = wandb.plot.histogram(hw, "weights_quant",
-                                                              title="Weights Levels of Quantization")
-            wandb_log["train/activations"] = wandb.plot.histogram(ha, "activations_quant",
-                                                                  title="Activations Levels of Quantization")
             wandb_log["train/epoch"] = state.epoch
 
             for m in self.metrics:
