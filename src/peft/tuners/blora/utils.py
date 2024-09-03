@@ -36,32 +36,32 @@ def get_proj_groups(layer: nn.Module, layer_n: int, prefix: str, model_name, hid
 
     if hidden_act is not None:
         groups.append(((input_template, q_template.format(prefix=prefix, name="weight"), ),
-                       [hidden_act, layer.weight_quantizer]))
+                       [hidden_act, layer.weight_quantizer["default"]]))
         if is_lora:
             groups.append(((input_template, q_template.format(prefix=prefix, name="lora_A"), ),
-                           [hidden_act, layer.lora_A_quantizer]))
+                           [hidden_act, layer.lora_A_quantizer["default"]]))
     else:
-        groups.append(((q_template.format(prefix=prefix, name="weight"),), [layer.weight_quantizer]))
+        groups.append(((q_template.format(prefix=prefix, name="weight"),), [layer.weight_quantizer["default"]]))
         if is_lora:
-            groups.append(((q_template.format(prefix=prefix, name="lora_A"),), [layer.lora_A_quantizer]))
+            groups.append(((q_template.format(prefix=prefix, name="lora_A"),), [layer.lora_A_quantizer["default"]]))
             if prune_rank:
                 groups.append(((q_template.format(prefix=prefix, name="lora_A_act"),
-                                q_template.format(prefix=prefix, name="lora_E"),), [layer.lora_A_act_quantizer,
-                                                                                    layer.lora_E_quantizer]))
+                                q_template.format(prefix=prefix, name="lora_E"),), [layer.lora_A_act_quantizer["default"],
+                                                                                    layer.lora_E_quantizer["default"]]))
 
     if is_lora:
         if prune_rank:
             groups.append(((q_template.format(prefix=prefix, name="lora_E_act"),
                             q_template.format(prefix=prefix, name="lora_B"),),
-                           [layer.lora_A_act_quantizer, layer.lora_B_quantizer]))
+                           [layer.lora_A_act_quantizer["default"], layer.lora_B_quantizer["default"]]))
         else:
             groups.append(((q_template.format(prefix=prefix, name="lora_A_act"),
                             q_template.format(prefix=prefix, name="lora_B"),),
-                           [layer.lora_A_act_quantizer, layer.lora_B_quantizer]))
+                           [layer.lora_A_act_quantizer["default"], layer.lora_B_quantizer["default"]]))
 
     if is_lora:
-        groups.append(((q_template.format(prefix=prefix, name="activation"),), [layer.activation_quantizer]))
-        groups.append(((q_template.format(prefix=prefix, name="out_act_quantizer"),), [layer.out_act_quantizer]))
+        groups.append(((q_template.format(prefix=prefix, name="activation"),), [layer.activation_quantizer["default"]]))
+        groups.append(((q_template.format(prefix=prefix, name="out_act_quantizer"),), [layer.out_act_quantizer["default"]]))
 
     return groups
 
