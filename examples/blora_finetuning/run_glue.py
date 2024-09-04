@@ -476,6 +476,9 @@ def main():
             prune_rank=True,
             inference_mode=False,
             learn_scales=True,
+            gamma_4_init=model_args.gamma_4_init,
+            gamma_8_init=model_args.gamma_8_init,
+            gamma_16_init=model_args.gamma_16_init,
         )
         model = get_peft_model(model, blora_config)
         model = model.to(device)

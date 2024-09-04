@@ -1,10 +1,10 @@
 # Copyright 2023-present the HuggingFace Inc. team.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 6.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-6.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,10 +44,10 @@ class BLoraConfig(LoraConfig):
     n_bits: int = field(default=16, metadata={"help": "Maximum number of bits."})
     learn_gates: bool = field(default=True, metadata={"help": "If true, gates are optimized."})
     learn_scales: bool = field(default=True, metadata={"help": "If true, scales are optimized."})
-    gamma_4_init: int = field(default=2.0, metadata={"help": "Initial gate 4 value."})
-    gamma_8_init: float = field(default=2.0, metadata={"help": "Initial gate 8 value."})
-    gamma_16_init: float = field(default=2.0, metadata={"help": "Initial gate 16 value."})
-    gamma_32_init: float = field(default=2.0, metadata={"help": "Initial gate 32 value."})
+    gamma_4_init: int = field(default=6.0, metadata={"help": "Initial gate 4 value."})
+    gamma_8_init: float = field(default=6.0, metadata={"help": "Initial gate 8 value."})
+    gamma_16_init: float = field(default=6.0, metadata={"help": "Initial gate 16 value."})
+    gamma_32_init: float = field(default=6.0, metadata={"help": "Initial gate 32 value."})
     gates_lr: float = field(default=1e-2, metadata={"help": "Learning rate for gates."})
     scales_lr: float = field(default=1e-2, metadata={"help": "Learning rate for scales."})
     scales_type: str = field(default="scale", metadata={"help": "The total training steps."})
