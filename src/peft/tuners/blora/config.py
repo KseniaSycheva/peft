@@ -44,7 +44,7 @@ class BLoraConfig(LoraConfig):
     n_bits: int = field(default=16, metadata={"help": "Maximum number of bits."})
     learn_gates: bool = field(default=True, metadata={"help": "If true, gates are optimized."})
     learn_scales: bool = field(default=False, metadata={"help": "If true, scales are optimized."})
-    gamma_4_init: int = field(default=1, metadata={"help": "Initial gate 4 value."})
+    gamma_4_init: int = field(default=6.0, metadata={"help": "Initial gate 4 value."})
     gamma_8_init: float = field(default=6.0, metadata={"help": "Initial gate 8 value."})
     gamma_16_init: float = field(default=6.0, metadata={"help": "Initial gate 16 value."})
     gamma_32_init: float = field(default=6.0, metadata={"help": "Initial gate 32 value."})
