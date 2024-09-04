@@ -266,7 +266,7 @@ class BLoraSVDLayer(BLoraLayer):
 
         super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
 
-        self.lora_E_quantizer = Quantizer(
+        self.lora_E_quantizer[adapter_name] = Quantizer(
             method="bayesian_bits",
             n_bits=self.N,
             use_running_mean=True,
