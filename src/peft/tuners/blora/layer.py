@@ -254,7 +254,6 @@ class BLoraSVDLayer(BLoraLayer):
         self.lora_E_quantizer = nn.ModuleDict({})
         self.lora_E_act_quantizer = nn.ModuleDict({})
 
-        self.weight_quantizers.append(self.lora_E_quantizer)
         self.activation_quantizers.append(self.lora_E_act_quantizer)
 
         self.fan_in_fan_out = fan_in_fan_out
@@ -266,6 +265,14 @@ class BLoraSVDLayer(BLoraLayer):
         self.lora_E[adapter_name] = nn.Parameter(torch.randn(r, 1))
 
         super().update_layer(adapter_name, r, lora_alpha, lora_dropout, init_lora_weights, **kwargs)
+
+        self.lora_E_quantizer = Quantizer(
+            method="bayesian_bits",
+            n_bits=self.N,
+            use_running_mean=True,
+            prune_rank=True,
+            **kwargs
+        )
 
     def reset_lora_parameters(self, adapter_name, init_lora_weights):
         super().reset_lora_parameters(adapter_name, init_lora_weights)
